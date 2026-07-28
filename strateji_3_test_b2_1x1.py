@@ -131,7 +131,11 @@ def run_strategy():
         print("Yeterli geçmiş veri yok.")
         return
 
-    recent_k = close_1730.iloc[-K_DAYS:]
+    today_str = datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d')
+    if close_1730.index[-1].strftime('%Y-%m-%d') == today_str:
+        recent_k = close_1730.iloc[-(K_DAYS+1):-1]
+    else:
+        recent_k = close_1730.iloc[-K_DAYS:]
     hist_zscores = []
     weights = []
 
@@ -146,7 +150,17 @@ def run_strategy():
     w_arr = np.array(weights) / np.sum(weights)
     sig_series = pd.Series(np.tensordot(w_arr, np.array(hist_zscores), axes=(0, 0)), index=r_oc_df.columns)
 
-    latest_prices = close_df.iloc[-1]
+    # Webhook Fiyatlarını Oku (close_prices.json)
+    close_prices = {}
+    if os.path.exists(os.path.join(BASE_DIR, 'close_prices.json')):
+        with open(os.path.join(BASE_DIR, 'close_prices.json'), 'r') as f:
+            close_prices = json.load(f)
+            
+    if not close_prices:
+        print("close_prices.json bulunamadı. Webhook gelmedi mi?")
+        return
+        
+    latest_prices = pd.Series(close_prices)
     valid_stocks = sig_series.dropna().index.intersection(latest_prices.dropna().index)
     sorted_stocks = sig_series[valid_stocks].sort_values(ascending=False)
 

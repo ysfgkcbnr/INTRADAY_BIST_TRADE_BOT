@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
 """
-STRATEJİ 1: Test A1 (1x1) — 17:30 Kapanış Barı İşlem Botu
-=========================================================
+STRATEJİ 1: Test A1 (1x1) — Sadece 17:30 Barı (30 Dk İşlem)
+================================================================================
 Strateji Özeti:
-- Günün diğer saatlerini pas geçer, sadece 17:30 kapanış barında işlem yapar.
-- Sinyal: Geçmiş K=10 günün 17:30 barındaki periyodiklik getirileri (z-score + 1/k ağırlık).
-- Seçim: En yüksek 1 hisse LONG (+100k TL Notional), en düşük 1 hisse SHORT (-100k TL Notional).
-- Sanal Para: 100.000 TL Özkaynak (2.0x VİOP Kaldıraçlı).
-- Komisyon: 10 binde 2 (%0.020 / 2.0 BPS).
-
-Kullanım:
-  python3 strateji_1_test_a1_1x1.py --run       # Tek bir 30 dk canlı güncelleme ve rebalance
-  python3 strateji_1_test_a1_1x1.py --report    # Sanal portföy durum raporu
-  python3 strateji_1_test_a1_1x1.py --reset     # Sanal bakiye sıfırlama (100.000 TL)
+- Her gün 17:00'da webhook ile tetiklenir, pozisyon açar.
+- Her gün 17:30'da webhook ile tetiklenir, pozisyon kapatır.
+- Sinyal: Geçmiş K=10 günün 17:00-17:30 getirileri üzerinden 1/k Z-Skor.
 """
 
 import os
@@ -32,9 +25,8 @@ PORTFOLIO_FILE = os.path.join(BASE_DIR, 'portfolio_a1_1x1.json')
 TZ_ISTANBUL = timezone(timedelta(hours=3))
 
 INITIAL_EQUITY = 100000.0
-COST_BPS = 0.00035
+COST_BPS = 0.00020
 K_DAYS = 10
-N_SIZE = 1
 
 TICKERS_BIST = [
     'AEFES', 'AKBNK', 'ASELS', 'BIMAS', 'EKGYO', 'ENKAI', 'EREGL', 'FROTO',
@@ -56,7 +48,7 @@ def load_portfolio():
             pass
 
     portfolio = {
-        'strategy_name': 'Test A1 (1x1)',
+        'strategy_name': 'Test A1 (1x1) - 30 Dk Vur-Kaç',
         'last_updated': datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d %H:%M:%S'),
         'initial_capital': INITIAL_EQUITY,
         'cash': INITIAL_EQUITY,
@@ -106,16 +98,15 @@ def fetch_data():
         open_df = open_df[valid_mask].copy()
 
         r_oc_df = np.log(close_df / open_df)
-
         return {'close': close_df, 'open': open_df, 'r_oc': r_oc_df}
     except Exception as e:
         print(f"Veri çekme hatası: {e}")
         return None
 
 
-def run_strategy():
+def run_entry():
     now_str = datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d %H:%M:%S')
-    print(f"\n[{now_str}] Strateji 1 (Test A1 1x1) Canlı Sinyal & Rebalance İşlemi...")
+    print(f"\n[{now_str}] Strateji 1 (A1) ENTRY (17:00) Başladı...")
 
     portfolio = load_portfolio()
     data = fetch_data()
@@ -123,14 +114,20 @@ def run_strategy():
         return
 
     r_oc_df = data['r_oc']
-    close_df = data['close']
     close_1730 = r_oc_df[r_oc_df.index.strftime('%H:%M') == '17:00']
 
     if len(close_1730) < K_DAYS:
         print("Yeterli geçmiş veri yok.")
         return
 
-    recent_k = close_1730.iloc[-K_DAYS:]
+    # Sinyal SADECE geçmiş K güne bakılarak hesaplanır (Bugün hariç)
+    # Eğer close_1730'un son satırı bugüne aitse (17:00 Yahoo'da oluştuysa), onu alma!
+    today_str = datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d')
+    if close_1730.index[-1].strftime('%Y-%m-%d') == today_str:
+        recent_k = close_1730.iloc[-(K_DAYS+1):-1]
+    else:
+        recent_k = close_1730.iloc[-K_DAYS:]
+
     hist_zscores = []
     weights = []
 
@@ -142,81 +139,137 @@ def run_strategy():
             hist_zscores.append(z_k)
             weights.append(1.0 / k)
 
+    if not hist_zscores:
+        print("Geçmiş z-skor hesaplanamadı.")
+        return
+
     w_arr = np.array(weights) / np.sum(weights)
     sig_series = pd.Series(np.tensordot(w_arr, np.array(hist_zscores), axes=(0, 0)), index=r_oc_df.columns)
 
-    latest_prices = close_df.iloc[-1]
-    valid_stocks = sig_series.dropna().index.intersection(latest_prices.dropna().index)
+    # 17:00 Webhook Fiyatlarını Oku (open_prices.json)
+    open_prices = {}
+    if os.path.exists(os.path.join(BASE_DIR, 'open_prices.json')):
+        with open(os.path.join(BASE_DIR, 'open_prices.json'), 'r') as f:
+            open_prices = json.load(f)
+    
+    if not open_prices:
+        print("open_prices.json bulunamadı. Webhook gelmedi mi?")
+        return
+
+    valid_stocks = sig_series.dropna().index.intersection(open_prices.keys())
     sorted_stocks = sig_series[valid_stocks].sort_values(ascending=False)
 
     top_1 = sorted_stocks.index[0]
     bottom_1 = sorted_stocks.index[-1]
 
-    print(f"Top 1 Long  : {top_1} (Sinyal: {sorted_stocks[top_1]:+.3f}, Fiyat: {latest_prices[top_1]:.2f} TL)")
-    print(f"Bottom 1 Short: {bottom_1} (Sinyal: {sorted_stocks[bottom_1]:+.3f}, Fiyat: {latest_prices[bottom_1]:.2f} TL)")
+    price_top = float(open_prices[top_1])
+    price_bottom = float(open_prices[bottom_1])
 
-    # Execute Paper Trade Logic for Test A1 (1x1)
-    price_top = float(latest_prices[top_1])
-    price_bottom = float(latest_prices[bottom_1])
-    target_shares_long = int(portfolio['equity'] / price_top) if price_top > 0 else 0
-    target_shares_short = int(portfolio['equity'] / price_bottom) if price_bottom > 0 else 0
+    msg_top = f"Top 1 Long Adayı  : {top_1} (Sinyal: {sorted_stocks[top_1]:+.3f}, Giriş: {price_top:.2f} TL)"
+    msg_bot = f"Bottom 1 Short Adayı: {bottom_1} (Sinyal: {sorted_stocks[bottom_1]:+.3f}, Giriş: {price_bottom:.2f} TL)"
+    print(msg_top)
+    print(msg_bot)
 
-    # Close old positions
-    for t, pos in list(portfolio['active_positions'].items()):
-        exit_price = float(latest_prices[t]) if t in latest_prices else pos['entry_price']
-        realized = (exit_price - pos['entry_price']) * pos['shares'] if pos['side'] == 'LONG' else (pos['entry_price'] - exit_price) * pos['shares']
-        cost = (exit_price * pos['shares']) * COST_BPS
+    signal_log_path = os.path.join(BASE_DIR, 'signals_a1_1x1.log')
+    with open(signal_log_path, 'a', encoding='utf-8') as f:
+        f.write(f"[{now_str}] ENTRY\n{msg_top}\n{msg_bot}\n\n")
 
-        portfolio['cash'] += realized - cost
-        portfolio['total_realized_pnl'] += realized
-        portfolio['total_commission_paid'] += cost
+    total_equity = portfolio['equity']
+    target_shares_long = int(total_equity / price_top) if price_top > 0 else 0
+    target_shares_short = int(total_equity / price_bottom) if price_bottom > 0 else 0
 
-        portfolio['trade_history'].append({
-            'timestamp': now_str, 'ticker': t, 'action': f"CLOSE_{pos['side']}",
-            'shares': pos['shares'], 'price': exit_price, 'realized_pnl': realized, 'commission': cost
-        })
-
+    # Mevcut pozisyon varsa temizle (olmamasi lazim)
     portfolio['active_positions'] = {}
 
-    # Open new 1x1 positions
     if target_shares_long > 0:
-        cost_l = (price_top * target_shares_long) * COST_BPS
-        portfolio['cash'] -= cost_l
-        portfolio['total_commission_paid'] += cost_l
+        cost = (price_top * target_shares_long) * COST_BPS
+        portfolio['cash'] -= cost
+        portfolio['total_commission_paid'] += cost
         portfolio['active_positions'][top_1] = {
             'side': 'LONG', 'shares': target_shares_long, 'entry_price': price_top, 'curr_price': price_top, 'unrealized_pnl': 0.0
         }
 
     if target_shares_short > 0:
-        cost_s = (price_bottom * target_shares_short) * COST_BPS
-        portfolio['cash'] -= cost_s
-        portfolio['total_commission_paid'] += cost_s
+        cost = (price_bottom * target_shares_short) * COST_BPS
+        portfolio['cash'] -= cost
+        portfolio['total_commission_paid'] += cost
         portfolio['active_positions'][bottom_1] = {
             'side': 'SHORT', 'shares': target_shares_short, 'entry_price': price_bottom, 'curr_price': price_bottom, 'unrealized_pnl': 0.0
         }
 
-    portfolio['equity'] = portfolio['cash']
     save_portfolio(portfolio)
-    print(f"Strateji 1 Güncellendi. Güncel Sanal Özkaynak: {portfolio['equity']:,.2f} TL")
+    print("A1 Entry Tamamlandı.")
+
+
+def run_exit():
+    now_str = datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d %H:%M:%S')
+    print(f"\n[{now_str}] Strateji 1 (A1) EXIT (17:30) Başladı...")
+
+    portfolio = load_portfolio()
+    
+    close_prices = {}
+    if os.path.exists(os.path.join(BASE_DIR, 'close_prices.json')):
+        with open(os.path.join(BASE_DIR, 'close_prices.json'), 'r') as f:
+            close_prices = json.load(f)
+            
+    if not close_prices:
+        print("close_prices.json bulunamadı. Webhook gelmedi mi?")
+        return
+
+    # Tüm pozisyonları kapat
+    for t in list(portfolio['active_positions'].keys()):
+        if t in close_prices:
+            pos = portfolio['active_positions'].pop(t)
+            exit_price = float(close_prices[t])
+            realized = (exit_price - pos['entry_price']) * pos['shares'] if pos['side'] == 'LONG' else (pos['entry_price'] - exit_price) * pos['shares']
+            cost = (exit_price * pos['shares']) * COST_BPS
+
+            portfolio['cash'] += realized - cost
+            portfolio['total_realized_pnl'] += realized
+            portfolio['total_commission_paid'] += cost
+
+            if 'trade_history' not in portfolio:
+                portfolio['trade_history'] = []
+            
+            portfolio['trade_history'].append({
+                'ticker': t,
+                'side': pos['side'],
+                'shares': pos['shares'],
+                'entry_price': pos['entry_price'],
+                'exit_price': exit_price,
+                'realized_pnl': realized,
+                'commission_paid': cost,
+                'close_time': now_str
+            })
+            print(f"{t} Exit: {exit_price:.2f} TL | PnL: {realized:.2f} TL")
+
+    portfolio['equity'] = portfolio['cash']
+    
+    if 'equity_history' not in portfolio:
+        portfolio['equity_history'] = []
+    portfolio['equity_history'].append({
+        'time': now_str,
+        'equity': portfolio['equity']
+    })
+
+    save_portfolio(portfolio)
+    print(f"A1 Exit Tamamlandı. Güncel Sermaye: {portfolio['equity']:.2f}")
 
 
 def report():
     p = load_portfolio()
     print("=" * 70)
-    print("STRATEJİ 1: Test A1 (1x1) CANLI SANAL PORTFÖY RAPORU")
+    print("STRATEJİ 1: Test A1 (1x1) PORTFÖY RAPORU")
     print("=" * 70)
-    print(f"Son Güncelleme      : {p['last_updated']}")
-    print(f"Başlangıç Sermayesi : {p['initial_capital']:,.2f} TL")
     print(f"Güncel Sanal Özkaynak: {p['equity']:,.2f} TL")
-    ret_pct = (p['equity'] - p['initial_capital']) / p['initial_capital'] * 100.0
-    print(f"Net Toplam Getiri   : {p['equity'] - p['initial_capital']:+,.2f} TL (%{ret_pct:+.2f})")
     print(f"Aktif Pozisyonlar   : {list(p['active_positions'].keys())}")
     print("=" * 70)
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Strateji 1 Botu')
-    parser.add_argument('--run', action='store_true')
+    parser = argparse.ArgumentParser(description='Strateji 1 A1 Botu')
+    parser.add_argument('--run_entry', action='store_true')
+    parser.add_argument('--run_exit', action='store_true')
     parser.add_argument('--report', action='store_true')
     parser.add_argument('--reset', action='store_true')
 
@@ -225,8 +278,11 @@ def main():
         reset_portfolio()
     elif args.report:
         report()
-    elif args.run:
-        run_strategy()
+    elif args.run_entry:
+        run_entry()
+        report()
+    elif args.run_exit:
+        run_exit()
         report()
     else:
         parser.print_help()

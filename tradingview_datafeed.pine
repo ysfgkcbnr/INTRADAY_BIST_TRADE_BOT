@@ -1,0 +1,53 @@
+//@version=5
+indicator("BIST 28 Real-Time Data Feed (A1 & B2)", overlay=true)
+
+// NOT: Bu script'i BIST:XU100 grafiğinde ve 1 DAKİKALIK (1m) zaman diliminde çalıştırmalısınız.
+
+// 28 Hissenin Anlık Kapanış (Close) Fiyatlarını Çekiyoruz
+p_aefes = request.security("BIST:AEFES", "1", close)
+p_akbnk = request.security("BIST:AKBNK", "1", close)
+p_asels = request.security("BIST:ASELS", "1", close)
+p_bimas = request.security("BIST:BIMAS", "1", close)
+p_ekgyo = request.security("BIST:EKGYO", "1", close)
+p_enkai = request.security("BIST:ENKAI", "1", close)
+p_eregl = request.security("BIST:EREGL", "1", close)
+p_froto = request.security("BIST:FROTO", "1", close)
+p_garan = request.security("BIST:GARAN", "1", close)
+p_gubrf = request.security("BIST:GUBRF", "1", close)
+p_isctr = request.security("BIST:ISCTR", "1", close)
+p_kchol = request.security("BIST:KCHOL", "1", close)
+p_krdmd = request.security("BIST:KRDMD", "1", close)
+p_mgros = request.security("BIST:MGROS", "1", close)
+p_petkm = request.security("BIST:PETKM", "1", close)
+p_pgsus = request.security("BIST:PGSUS", "1", close)
+p_sahol = request.security("BIST:SAHOL", "1", close)
+p_sasa  = request.security("BIST:SASA", "1", close)
+p_sise  = request.security("BIST:SISE", "1", close)
+p_tavhl = request.security("BIST:TAVHL", "1", close)
+p_tcell = request.security("BIST:TCELL", "1", close)
+p_thyao = request.security("BIST:THYAO", "1", close)
+p_toaso = request.security("BIST:TOASO", "1", close)
+p_tralt = request.security("BIST:TRALT", "1", close)
+p_ttkom = request.security("BIST:TTKOM", "1", close)
+p_tuprs = request.security("BIST:TUPRS", "1", close)
+p_vakbn = request.security("BIST:VAKBN", "1", close)
+p_ykbnk = request.security("BIST:YKBNK", "1", close)
+
+// JSON formatında fiyatları birleştiriyoruz
+json_payload = '{"AEFES":' + str.tostring(p_aefes) + ', "AKBNK":' + str.tostring(p_akbnk) + ', "ASELS":' + str.tostring(p_asels) + ', "BIMAS":' + str.tostring(p_bimas) + ', "EKGYO":' + str.tostring(p_ekgyo) + ', "ENKAI":' + str.tostring(p_enkai) + ', "EREGL":' + str.tostring(p_eregl) + ', "FROTO":' + str.tostring(p_froto) + ', "GARAN":' + str.tostring(p_garan) + ', "GUBRF":' + str.tostring(p_gubrf) + ', "ISCTR":' + str.tostring(p_isctr) + ', "KCHOL":' + str.tostring(p_kchol) + ', "KRDMD":' + str.tostring(p_krdmd) + ', "MGROS":' + str.tostring(p_mgros) + ', "PETKM":' + str.tostring(p_petkm) + ', "PGSUS":' + str.tostring(p_pgsus) + ', "SAHOL":' + str.tostring(p_sahol) + ', "SASA":' + str.tostring(p_sasa) + ', "SISE":' + str.tostring(p_sise) + ', "TAVHL":' + str.tostring(p_tavhl) + ', "TCELL":' + str.tostring(p_tcell) + ', "THYAO":' + str.tostring(p_thyao) + ', "TOASO":' + str.tostring(p_toaso) + ', "TRALT":' + str.tostring(p_tralt) + ', "TTKOM":' + str.tostring(p_ttkom) + ', "TUPRS":' + str.tostring(p_tuprs) + ', "VAKBN":' + str.tostring(p_vakbn) + ', "YKBNK":' + str.tostring(p_ykbnk) + '}'
+
+// Saat kontrolü (İstanbul Saatine Göre)
+h = hour(time, "Europe/Istanbul")
+m = minute(time, "Europe/Istanbul")
+
+// 16:59 mumu kapandığında saat tam 17:00 olur. (A1 Stratejisi Alım Zamanı)
+is_1700_trigger = (h == 16 and m == 59)
+
+// 17:29 mumu kapandığında saat tam 17:30 olur. (A1 Satım & B2 Alım-Satım Zamanı)
+is_1730_trigger = (h == 17 and m == 29)
+
+if is_1700_trigger
+    alert('{"time": "17:00", "prices": ' + json_payload + '}', alert.freq_once_per_bar_close)
+
+if is_1730_trigger
+    alert('{"time": "17:30", "prices": ' + json_payload + '}', alert.freq_once_per_bar_close)

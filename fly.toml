@@ -1,0 +1,18 @@
+app = "bist-trade-bot-yusuf"
+primary_region = "ams" # Amsterdam (Bize en yakın ve genelde ücretsiz kapasitesi bol yer)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # Kendi repomuzu ve adımızı yazıyoruz
+  GITHUB_USER = "ysfgkcbnr"
+  GITHUB_REPO = "ysfgkcbnr/INTRADAY_BIST_TRADE_BOT"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]

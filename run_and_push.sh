@@ -23,8 +23,7 @@ fi
 # 2. Çalıştırmadan önce reponun en güncel halini al
 git pull --rebase origin main
 
-# 3. Python strateji botunu çalıştır
-python strateji_3_test_b2_1x1.py --run
+# 3. (IPTAL - Python botlari artik Flask tarafindan ayri ayri calistiriliyor)
 
 # 4. Değişen JSON portföy dosyasını ve logları GitHub'a kaydet (Push)
 git add portfolio_*.json signals_*.log
