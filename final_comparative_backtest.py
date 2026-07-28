@@ -42,8 +42,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 TZ_ISTANBUL = timezone(timedelta(hours=3))
 INTERVALS_PER_DAY = 16
 EXCLUDED_TIMES = {'09:30', '18:00'}
-
-COST_BPS = 0.00020  # 10 binde 2 default (2.0 BPS)
+COST_BPS = 0.00035  # 10 binde 3.5 default (3.5 BPS)
 
 plt.rcParams.update({
     'figure.figsize': (14, 8),

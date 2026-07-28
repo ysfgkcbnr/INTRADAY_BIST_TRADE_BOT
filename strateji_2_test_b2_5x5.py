@@ -32,7 +32,7 @@ PORTFOLIO_FILE = os.path.join(BASE_DIR, 'portfolio_b2_5x5.json')
 TZ_ISTANBUL = timezone(timedelta(hours=3))
 
 INITIAL_EQUITY = 100000.0
-COST_BPS = 0.00020
+COST_BPS = 0.00035
 K_DAYS = 10
 N_SIZE = 5
 
