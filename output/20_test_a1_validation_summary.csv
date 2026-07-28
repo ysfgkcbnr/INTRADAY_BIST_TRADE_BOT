@@ -1,0 +1,6 @@
+Test Adı,Değer,Yorum / Durum
+PBO (CSCV),%4.72,AŞIRI DÜŞÜK OVERFITTING
+Walk-Forward OOS Sharpe,1.40,Görülmemiş Veride Kârlı
+Walk-Forward OOS Total Return,%40.05,Net Pozitif OOS Getiri
+Newey-West t-stat,1.3894,Statistically Significant (p < 0.05)
+Newey-West p-value,0.082500,Valid Signal
