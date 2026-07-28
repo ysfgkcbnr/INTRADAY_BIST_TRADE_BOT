@@ -37,10 +37,22 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
           git add portfolio_*.json
-          if ! git diff --staged --quiet; then
-            git commit -m "Auto Update: Paper Portfolio State [skip ci]"
-            git pull --rebase origin main
-            git push
-          else
-            echo "No changes to commit."
+          
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
           fi
+          
+          git commit -m "Auto Update: Paper Portfolio State [skip ci]"
+          
+          BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
+          git fetch origin "$BRANCH"
+          
+          if git rebase "origin/$BRANCH"; then
+            git push origin "HEAD:$BRANCH"
+          else
+            git rebase --abort || true
+            git push --force-with-lease origin "HEAD:$BRANCH"
+          fi
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
