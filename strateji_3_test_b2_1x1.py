@@ -153,8 +153,15 @@ def run_strategy():
     top_1 = sorted_stocks.index[0]
     bottom_1 = sorted_stocks.index[-1]
 
-    print(f"Top 1 Long Adayı  : {top_1} (Sinyal: {sorted_stocks[top_1]:+.3f}, Fiyat: {latest_prices[top_1]:.2f} TL)")
-    print(f"Bottom 1 Short Adayı: {bottom_1} (Sinyal: {sorted_stocks[bottom_1]:+.3f}, Fiyat: {latest_prices[bottom_1]:.2f} TL)")
+    msg_top = f"Top 1 Long Adayı  : {top_1} (Sinyal: {sorted_stocks[top_1]:+.3f}, Fiyat: {latest_prices[top_1]:.2f} TL)"
+    msg_bot = f"Bottom 1 Short Adayı: {bottom_1} (Sinyal: {sorted_stocks[bottom_1]:+.3f}, Fiyat: {latest_prices[bottom_1]:.2f} TL)"
+    print(msg_top)
+    print(msg_bot)
+
+    # Sinyalleri kalici dosyaya yaz (signals_b2_1x1.log)
+    signal_log_path = os.path.join(BASE_DIR, 'signals_b2_1x1.log')
+    with open(signal_log_path, 'a', encoding='utf-8') as f:
+        f.write(f"[{now_str}]\n{msg_top}\n{msg_bot}\n\n")
 
     price_top = float(latest_prices[top_1])
     price_bottom = float(latest_prices[bottom_1])
@@ -184,6 +191,21 @@ def run_strategy():
             portfolio['total_realized_pnl'] += realized
             portfolio['total_commission_paid'] += cost
 
+            # Gecmis islem logunu trade_history listesine kaydet
+            if 'trade_history' not in portfolio:
+                portfolio['trade_history'] = []
+            
+            portfolio['trade_history'].append({
+                'ticker': t,
+                'side': pos['side'],
+                'shares': pos['shares'],
+                'entry_price': pos['entry_price'],
+                'exit_price': exit_price,
+                'realized_pnl': realized,
+                'commission_paid': cost,
+                'close_time': now_str
+            })
+
     # Open target 1x1 positions
     target_shares_long = int(total_equity / price_top) if price_top > 0 else 0
     target_shares_short = int(total_equity / price_bottom) if price_bottom > 0 else 0
@@ -203,6 +225,14 @@ def run_strategy():
         portfolio['active_positions'][bottom_1] = {
             'side': 'SHORT', 'shares': target_shares_short, 'entry_price': price_bottom, 'curr_price': price_bottom, 'unrealized_pnl': 0.0
         }
+
+    # Sermaye gecmisi takibi icin
+    if 'equity_history' not in portfolio:
+        portfolio['equity_history'] = []
+    portfolio['equity_history'].append({
+        'time': now_str,
+        'equity': portfolio['equity']
+    })
 
     save_portfolio(portfolio)
     print(f"Strateji 3 Güncellendi. Güncel Sanal Özkaynak: {portfolio['equity']:,.2f} TL")
