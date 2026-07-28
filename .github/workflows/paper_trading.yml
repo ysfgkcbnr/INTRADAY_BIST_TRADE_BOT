@@ -6,6 +6,9 @@ on:
     - cron: '*/30 7-15 * * 1-5'
   workflow_dispatch: # GitHub arayüzünden manuel tetikleme butonu
 
+permissions:
+  contents: write
+
 jobs:
   trade:
     runs-on: ubuntu-latest
