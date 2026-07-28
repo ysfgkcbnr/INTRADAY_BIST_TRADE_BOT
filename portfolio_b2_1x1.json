@@ -1,9 +1,9 @@
 {
   "strategy_name": "Test B2 (1x1) - Rekor Şampiyon",
-  "last_updated": "2026-07-28 13:57:44",
+  "last_updated": "2026-07-28 15:57:20",
   "initial_capital": 100000.0,
   "cash": 99930.0641895813,
-  "equity": 100000.0,
+  "equity": 99774.46299329224,
   "total_realized_pnl": 0.0,
   "total_unrealized_pnl": 0.0,
   "total_commission_paid": 69.93581041870117,
@@ -12,15 +12,15 @@
       "side": "LONG",
       "shares": 784,
       "entry_price": 127.4000015258789,
-      "curr_price": 127.4000015258789,
-      "unrealized_pnl": 0.0
+      "curr_price": 127.0,
+      "unrealized_pnl": -313.6011962890625
     },
     "MGROS": {
       "side": "SHORT",
       "shares": 158,
       "entry_price": 632.5,
-      "curr_price": 632.5,
-      "unrealized_pnl": 0.0
+      "curr_price": 631.5,
+      "unrealized_pnl": 158.0
     }
   },
   "trade_history": [],
