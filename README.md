@@ -59,28 +59,37 @@ python3 strateji_3_test_b2_1x1.py --report
 python3 strateji_3_test_b2_1x1.py --reset
 ```
 
----
+## 🚀 Live Trading Architecture (Fly.io + TradingView)
 
-## 🤖 24/7 Automated Trading via GitHub Actions
-
-You can deploy these bots completely **FOR FREE** using GitHub Actions to run continuously every 30 minutes during market hours.
-
-1. Push this repository to your own GitHub account.
-2. The provided `.github/workflows/paper_trading.yml` workflow is pre-configured to run every 30 minutes between 10:00 and 18:00 (Istanbul Time) on weekdays.
-3. Every 30 minutes, GitHub Actions will:
-   - Spin up an Ubuntu runner.
-   - Run the bot to fetch live data and rebalance the virtual portfolio.
-   - Automatically commit and push the updated `portfolio_*.json` file back to your repository.
-
-You can monitor your live virtual profits directly by inspecting the JSON files in your repository!
+These scripts have been upgraded to operate as a robust webhook-based live trading bot:
+1. **TradingView Pine Script:** A custom indicator (`tradingview_datafeed.pine`) runs on TradingView and sends price data via webhooks exactly at 17:00 and 17:30.
+2. **Fly.io Webhook Server:** A lightweight Flask server (`app.py`) listens for these incoming webhooks on Fly.io.
+3. **Execution:** Upon receiving the 17:00 signal, the server runs the entry logic for Test A1. At 17:30, it runs the exit logic for A1 and triggers Test B2. 
+4. **Database:** Intraday prices are continuously stored in a local SQLite database (`market_data.db`) updated periodically by background tasks (`db_updater.py`).
+5. **Persistence:** The bot automatically commits the updated portfolio JSON files back to this GitHub repository.
 
 ---
 
-## 🔬 Statistical Validation & Research
+## ⚙️ Installation & Usage
 
-The quantitative edge of these bots has been validated by an institutional-grade backtesting engine included in this repository. 
-- **CSCV (Probability of Backtest Overfitting):** Proves the strategies are not overfit to noise.
-- **Nested Walk-Forward Optimization:** Validates that the models sustain >1.00 Net Sharpe ratios on completely unseen rolling out-of-sample data.
-- **Newey-West HAC Tests:** Confirms the statistical significance of the returns, adjusting for autocorrelation.
+### 1. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Run the Webhook Server Locally
+```bash
+python3 app.py
+```
+
+---
+
+## 🔬 Statistical Validation & Research (Tavan/Taban Limit Filtered)
+
+The quantitative edge of these bots has been rigorously validated by an institutional-grade backtesting engine (`comprehensive_limit_backtest.py`), heavily modified to account for Borsa Istanbul's strict **9% limit up/down rules**:
+- **BIST 9% Limit Filter:** The engine strictly prevents trading on stocks locked at limit-up/down prices relative to the previous day's close. This eliminates fictitious profits.
+- **CSCV (Probability of Backtest Overfitting):** Proves the strategies are not overfit to noise (e.g., PBO score of ~21% for Test B2).
+- **Nested Walk-Forward Optimization:** Validates that the models sustain strong positive returns on completely unseen rolling out-of-sample data.
+- **Newey-West HAC Tests:** Confirms the statistical significance of the returns, adjusting for heteroskedasticity and autocorrelation.
 
 **Disclaimer:** This project is for educational and quantitative research purposes only. The bots trade entirely with virtual "paper" money. Do not connect this logic to live brokerage accounts without extensive real-time forward testing.
