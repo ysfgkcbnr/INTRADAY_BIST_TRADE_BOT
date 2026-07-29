@@ -175,20 +175,81 @@ def run_entry():
     valid_stocks = sig_series.dropna().index.intersection(open_prices.keys())
     sorted_stocks = sig_series[valid_stocks].sort_values(ascending=False)
 
-    top_1 = sorted_stocks.index[0]
-    bottom_1 = sorted_stocks.index[-1]
+    # Önceki gün kapanışlarını bul (Tavan/Taban hesabı için)
+    today_str = datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d')
+    close_df = data['close']
+    df_dates = pd.Series(close_df.index.date).unique()
+    df_dates.sort()
+    
+    prev_day_date = None
+    for d in reversed(df_dates):
+        if str(d) < today_str:
+            prev_day_date = d
+            break
+            
+    prev_closes = pd.Series(dtype=float)
+    if prev_day_date is not None:
+        prev_day_data = close_df[close_df.index.date == prev_day_date]
+        if not prev_day_data.empty:
+            prev_closes = prev_day_data.iloc[-1]
 
-    price_top = float(open_prices[top_1])
-    price_bottom = float(open_prices[bottom_1])
+    LIMIT_PCT = 0.09
+    signal_log_path = os.path.join(BASE_DIR, 'signals_a1_1x1.log')
 
-    msg_top = f"Top 1 Long Adayı  : {top_1} (Sinyal: {sorted_stocks[top_1]:+.3f}, Giriş: {price_top:.2f} TL)"
-    msg_bot = f"Bottom 1 Short Adayı: {bottom_1} (Sinyal: {sorted_stocks[bottom_1]:+.3f}, Giriş: {price_bottom:.2f} TL)"
+    # ------------------ LONG SEÇİMİ ------------------
+    top_1 = None
+    msg_top = "Uygun LONG adayı bulunamadı (Hepsi limit up)."
+    for ticker in sorted_stocks.index:
+        current_price = float(open_prices[ticker])
+        signal_val = sorted_stocks[ticker]
+        
+        is_limit_up = False
+        if ticker in prev_closes and pd.notna(prev_closes[ticker]):
+            prev_close = float(prev_closes[ticker])
+            change = (current_price / prev_close) - 1.0
+            if change >= LIMIT_PCT:
+                is_limit_up = True
+                skip_msg = f"[{now_str}] ATLANDI (LONG): {ticker} (Sinyal: {signal_val:+.3f}) -> Fiyat {current_price:.2f} TL önceki kapanışa ({prev_close:.2f} TL) göre +%{change*100:.2f} tavan sınırında!"
+                print(skip_msg)
+                with open(signal_log_path, 'a', encoding='utf-8') as f:
+                    f.write(skip_msg + "\n")
+                    
+        if not is_limit_up:
+            top_1 = ticker
+            msg_top = f"Top 1 Long Adayı  : {top_1} (Sinyal: {signal_val:+.3f}, Giriş: {current_price:.2f} TL)"
+            break
+
+    # ------------------ SHORT SEÇİMİ ------------------
+    bottom_1 = None
+    msg_bot = "Uygun SHORT adayı bulunamadı (Hepsi limit down)."
+    for ticker in sorted_stocks.index[::-1]:
+        current_price = float(open_prices[ticker])
+        signal_val = sorted_stocks[ticker]
+        
+        is_limit_down = False
+        if ticker in prev_closes and pd.notna(prev_closes[ticker]):
+            prev_close = float(prev_closes[ticker])
+            change = (current_price / prev_close) - 1.0
+            if change <= -LIMIT_PCT:
+                is_limit_down = True
+                skip_msg = f"[{now_str}] ATLANDI (SHORT): {ticker} (Sinyal: {signal_val:+.3f}) -> Fiyat {current_price:.2f} TL önceki kapanışa ({prev_close:.2f} TL) göre %{change*100:.2f} taban sınırında!"
+                print(skip_msg)
+                with open(signal_log_path, 'a', encoding='utf-8') as f:
+                    f.write(skip_msg + "\n")
+                    
+        if not is_limit_down:
+            bottom_1 = ticker
+            msg_bot = f"Bottom 1 Short Adayı: {bottom_1} (Sinyal: {signal_val:+.3f}, Giriş: {current_price:.2f} TL)"
+            break
+
     print(msg_top)
     print(msg_bot)
 
-    signal_log_path = os.path.join(BASE_DIR, 'signals_a1_1x1.log')
     with open(signal_log_path, 'a', encoding='utf-8') as f:
         f.write(f"[{now_str}] ENTRY\n{msg_top}\n{msg_bot}\n\n")
+
+    price_top = float(open_prices[top_1]) if top_1 else 0.0
+    price_bottom = float(open_prices[bottom_1]) if bottom_1 else 0.0
 
     total_equity = portfolio['equity']
     target_shares_long = int(total_equity / price_top) if price_top > 0 else 0
