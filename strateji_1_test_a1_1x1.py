@@ -16,7 +16,8 @@ import warnings
 import numpy as np
 import pandas as pd
 from datetime import datetime, timezone, timedelta
-import yfinance as yf
+from db_utils import get_db_connection
+
 
 warnings.filterwarnings('ignore')
 
@@ -79,19 +80,34 @@ def reset_portfolio():
 
 def fetch_data():
     try:
-        raw_df = yf.download(list(YF_MAP.values()), period='14d', interval='30m', progress=False)
-        if raw_df.empty:
+        conn = get_db_connection()
+        # Sadece son 14 günün verisini almak için basit bir tarih filtresi eklenebilir, 
+        # ancak pandas ile filtrelemek de hızlıdır. Tüm veriyi çekip son günleri alıyoruz.
+        df = pd.read_sql_query("SELECT symbol, datetime, open, close FROM historical_data", conn)
+        conn.close()
+
+        if df.empty:
             return None
-        if isinstance(raw_df.columns, pd.MultiIndex):
-            close_df = raw_df['Close'].rename(columns=REV_YF_MAP)
-            open_df = raw_df['Open'].rename(columns=REV_YF_MAP)
-        else:
-            close_df = raw_df[['Close']].rename(columns=REV_YF_MAP)
-            open_df = raw_df[['Open']].rename(columns=REV_YF_MAP)
 
-        close_df.index = pd.to_datetime(close_df.index).tz_convert(TZ_ISTANBUL)
-        open_df.index = pd.to_datetime(open_df.index).tz_convert(TZ_ISTANBUL)
+        # 'BIST:' önekini temizle
+        df['symbol'] = df['symbol'].str.replace('BIST:', '')
+        # datetime string'lerini datetime objesine çevir
+        df['datetime'] = pd.to_datetime(df['datetime'])
 
+        # Pivot tablolara çevir (satırlar: zaman, sütunlar: hisse kodu)
+        close_df = df.pivot(index='datetime', columns='symbol', values='close')
+        open_df = df.pivot(index='datetime', columns='symbol', values='open')
+
+        # Zaman dilimini Istanbul'a ayarla
+        close_df.index = close_df.index.tz_localize(TZ_ISTANBUL)
+        open_df.index = open_df.index.tz_localize(TZ_ISTANBUL)
+
+        # 14 günlük filtre
+        fourteen_days_ago = datetime.now(TZ_ISTANBUL) - timedelta(days=14)
+        close_df = close_df[close_df.index >= fourteen_days_ago]
+        open_df = open_df[open_df.index >= fourteen_days_ago]
+
+        # 09:30 ve 18:00 (kapanış) mumlarını filtrele (eski yfinance kalıntısı)
         time_str = close_df.index.strftime('%H:%M')
         valid_mask = ~time_str.isin(['09:30', '18:00'])
         close_df = close_df[valid_mask].copy()
@@ -100,7 +116,7 @@ def fetch_data():
         r_oc_df = np.log(close_df / open_df)
         return {'close': close_df, 'open': open_df, 'r_oc': r_oc_df}
     except Exception as e:
-        print(f"Veri çekme hatası: {e}")
+        print(f"Veri çekme hatası (Veritabanı): {e}")
         return None
 
 

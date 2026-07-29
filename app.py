@@ -3,6 +3,8 @@ import os
 import json
 import subprocess
 from datetime import datetime, timezone, timedelta
+from apscheduler.schedulers.background import BackgroundScheduler
+from db_updater import update_database_with_latest_bars
 
 app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -62,6 +64,18 @@ def webhook():
 @app.route('/', methods=['GET'])
 def health_check():
     return "TradingView Webhook Server is running!", 200
+
+# Initialize Scheduler
+scheduler = BackgroundScheduler(timezone=TZ_ISTANBUL)
+# Run every 30 minutes between 10:00 and 18:00
+scheduler.add_job(
+    update_database_with_latest_bars,
+    'cron',
+    day_of_week='mon-fri',
+    hour='10-18',
+    minute='0,30'
+)
+scheduler.start()
 
 if __name__ == '__main__':
     # Run Flask directly for development, Gunicorn will be used for production

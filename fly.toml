@@ -16,3 +16,7 @@ primary_region = "ams" # Amsterdam (Bize en yakın ve genelde ücretsiz kapasite
   auto_start_machines = true
   min_machines_running = 1
   processes = ["app"]
+
+[mounts]
+  source = "market_data_vol"
+  destination = "/data"
