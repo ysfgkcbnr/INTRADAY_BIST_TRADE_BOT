@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-STRATEJİ 3: Test B2 (1x1) — 1/10 Overlapping 10-Gün Taşıma (REKOR ŞAMPİYON BOT)
+STRATEJİ 4: Test C1 (1x1) — 1/10 Overlapping 10-Gün Taşıma (17:30 Rebalance)
 ================================================================================
 Strateji Özeti:
 - 17:30 periyodiklik sinyali ile açılan 1x1 (Top 1 Long / Bottom 1 Short) pozisyonlarını
   1/10 çakışmalı (overlapping) yapıda 10 gün boyunca kesintisiz taşır.
-- Backtest Başarısı: +%184.22 Net Getiri, +%26.87 Net CAGR, 1.07 Net Sharpe, Newey-West t = 2.1173 (p = 0.017 < 0.05).
+- Rebalance her akşam tam 17:30 kapanışından önceki 17:30 fiyatı ile (open_prices.json) yapılır.
 - Sinyal: Geçmiş K=10 günün 17:30 periyodundaki getirileri (1/k z-score).
 - Seçim: En yüksek 1 hisse LONG (+100k TL Notional), en düşük 1 hisse SHORT (-100k TL Notional).
 - Sanal Para: 100.000 TL Özkaynak (2.0x VİOP Kaldıraçlı).
 - Komisyon: 10 binde 2 (%0.020 / 2.0 BPS).
 
 Kullanım:
-  python3 strateji_3_test_b2_1x1.py --run       # Tek bir 30 dk canlı güncelleme ve rebalance
-  python3 strateji_3_test_b2_1x1.py --report    # Sanal portföy durum raporu
-  python3 strateji_3_test_b2_1x1.py --reset     # Sanal bakiye sıfırlama (100.000 TL)
+  python3 strateji_4_test_c1_1x1.py --run       # Tek bir 30 dk canlı güncelleme ve rebalance
+  python3 strateji_4_test_c1_1x1.py --report    # Sanal portföy durum raporu
+  python3 strateji_4_test_c1_1x1.py --reset     # Sanal bakiye sıfırlama (100.000 TL)
 """
 
 import os
@@ -31,7 +31,7 @@ from db_utils import get_db_connection
 warnings.filterwarnings('ignore')
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PORTFOLIO_FILE = os.path.join(BASE_DIR, 'portfolio_b2_1x1.json')
+PORTFOLIO_FILE = os.path.join(BASE_DIR, 'portfolio_c1_1x1.json')
 TZ_ISTANBUL = timezone(timedelta(hours=3))
 
 INITIAL_EQUITY = 100000.0
@@ -59,7 +59,7 @@ def load_portfolio():
             pass
 
     portfolio = {
-        'strategy_name': 'Test B2 (1x1) - Rekor Şampiyon',
+        'strategy_name': 'Test C1 (1x1) - 17:30 Rebalance',
         'last_updated': datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d %H:%M:%S'),
         'initial_capital': INITIAL_EQUITY,
         'cash': INITIAL_EQUITY,
@@ -85,7 +85,7 @@ def reset_portfolio():
     if os.path.exists(PORTFOLIO_FILE):
         os.remove(PORTFOLIO_FILE)
     load_portfolio()
-    print("Strateji 3 (Test B2 1x1 Rekor Şampiyon) Sanal Portföyü 100.000 TL'ye sıfırlandı.")
+    print("Strateji 4 (Test C1 1x1 17:30 Rebalance) Sanal Portföyü 100.000 TL'ye sıfırlandı.")
 
 
 def fetch_data():
@@ -132,7 +132,7 @@ def fetch_data():
 
 def run_strategy():
     now_str = datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d %H:%M:%S')
-    print(f"\n[{now_str}] Strateji 3 (Test B2 1x1 Rekor Şampiyon) Canlı Sinyal & Rebalance...")
+    print(f"\n[{now_str}] Strateji 4 (Test C1 1x1 17:30 Rebalance) Canlı Sinyal & Rebalance...")
 
     portfolio = load_portfolio()
     data = fetch_data()
@@ -166,14 +166,14 @@ def run_strategy():
     w_arr = np.array(weights) / np.sum(weights)
     sig_series = pd.Series(np.tensordot(w_arr, np.array(hist_zscores), axes=(0, 0)), index=r_oc_df.columns)
 
-    # 10:00 Webhook Fiyatlarını Oku (prices_1000.json)
+    # 17:30 Webhook Fiyatlarını Oku (open_prices.json)
     open_prices = {}
-    if os.path.exists(os.path.join(BASE_DIR, 'prices_1000.json')):
-        with open(os.path.join(BASE_DIR, 'prices_1000.json'), 'r') as f:
+    if os.path.exists(os.path.join(BASE_DIR, 'open_prices.json')):
+        with open(os.path.join(BASE_DIR, 'open_prices.json'), 'r') as f:
             open_prices = json.load(f)
 
     if not open_prices:
-        print("prices_1000.json bulunamadı. Webhook gelmedi mi?")
+        print("open_prices.json bulunamadı. Webhook gelmedi mi?")
         return
 
     latest_prices = pd.Series(open_prices)
@@ -198,7 +198,7 @@ def run_strategy():
             prev_closes = prev_day_data.iloc[-1]
 
     LIMIT_PCT = 0.09
-    signal_log_path = os.path.join(BASE_DIR, 'signals_b2_1x1.log')
+    signal_log_path = os.path.join(BASE_DIR, 'signals_c1_1x1.log')
 
     # ------------------ LONG SEÇİMİ ------------------
     top_1 = None
@@ -250,7 +250,7 @@ def run_strategy():
     print(msg_bot)
 
     # --- 10-Day Overlapping Logic ---
-    history_file = os.path.join(BASE_DIR, 'signals_history_b2.json')
+    history_file = os.path.join(BASE_DIR, 'signals_history_c1.json')
     sig_history = []
     if os.path.exists(history_file):
         with open(history_file, 'r') as f:
@@ -374,13 +374,13 @@ def run_strategy():
     portfolio['equity_history'].append({'time': now_str, 'equity': portfolio['equity']})
 
     save_portfolio(portfolio)
-    print(f"Strateji 3 Güncellendi. Güncel Sanal Özkaynak: {portfolio['equity']:,.2f} TL")
+    print(f"Strateji 4 Güncellendi. Güncel Sanal Özkaynak: {portfolio['equity']:,.2f} TL")
 
 
 def report():
     p = load_portfolio()
     print("=" * 70)
-    print("STRATEJİ 3: Test B2 (1x1) REKOR ŞAMPİYON PORTFÖY RAPORU")
+    print("STRATEJİ 4: Test C1 (1x1) 17:30 REBALANCE PORTFÖY RAPORU")
     print("=" * 70)
     print(f"Son Güncelleme      : {p['last_updated']}")
     print(f"Başlangıç Sermayesi : {p['initial_capital']:,.2f} TL")

@@ -13,16 +13,27 @@ TZ_ISTANBUL = timezone(timedelta(hours=3))
 
 import threading
 
+def process_1000_webhook():
+    logger.info("Triggering B2 Strategy (10:00)...")
+    res_b2 = subprocess.run(["python3", "strateji_3_test_b2_1x1.py", "--run"], cwd=BASE_DIR, capture_output=True, text=True)
+    if res_b2.stdout: logger.info(f"B2 Output:\n{res_b2.stdout}")
+    if res_b2.stderr: logger.error(f"B2 Error:\n{res_b2.stderr}")
+
+    logger.info("Pushing changes to GitHub...")
+    res_git = subprocess.run(["./run_and_push.sh"], cwd=BASE_DIR, capture_output=True, text=True)
+    if res_git.stdout: logger.info(f"Git Push Output:\n{res_git.stdout}")
+
+
 def process_1730_webhook():
     logger.info("Triggering A1 Strategy Entry...")
     res = subprocess.run(["python3", "strateji_1_test_a1_1x1.py", "--run_entry"], cwd=BASE_DIR, capture_output=True, text=True)
     if res.stdout: logger.info(f"A1 Entry Output:\n{res.stdout}")
     if res.stderr: logger.error(f"A1 Entry Error:\n{res.stderr}")
 
-    logger.info("Triggering B2 Strategy...")
-    res_b2 = subprocess.run(["python3", "strateji_3_test_b2_1x1.py", "--run"], cwd=BASE_DIR, capture_output=True, text=True)
-    if res_b2.stdout: logger.info(f"B2 Output:\n{res_b2.stdout}")
-    if res_b2.stderr: logger.error(f"B2 Error:\n{res_b2.stderr}")
+    logger.info("Triggering C1 Strategy (17:30)...")
+    res_c1 = subprocess.run(["python3", "strateji_4_test_c1_1x1.py", "--run"], cwd=BASE_DIR, capture_output=True, text=True)
+    if res_c1.stdout: logger.info(f"C1 Output:\n{res_c1.stdout}")
+    if res_c1.stderr: logger.error(f"C1 Error:\n{res_c1.stderr}")
 
     logger.info("Pushing changes to GitHub...")
     res_git = subprocess.run(["./run_and_push.sh"], cwd=BASE_DIR, capture_output=True, text=True)
@@ -50,10 +61,17 @@ def webhook():
         now_str = datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d %H:%M:%S')
         logger.info(f"Webhook received for time: {time_str}")
 
-        if time_str == "17:30":
+        if time_str == "10:00":
+            with open(os.path.join(BASE_DIR, 'prices_1000.json'), 'w') as f:
+                json.dump(prices, f)
+            logger.info("Saved prices_1000.json (used for B2 rebalance)")
+            
+            threading.Thread(target=process_1000_webhook).start()
+
+        elif time_str == "17:30":
             with open(os.path.join(BASE_DIR, 'open_prices.json'), 'w') as f:
                 json.dump(prices, f)
-            logger.info("Saved open_prices.json (used for A1 entry and B2 rebalance)")
+            logger.info("Saved open_prices.json (used for A1 entry and C1 rebalance)")
             
             threading.Thread(target=process_1730_webhook).start()
 
