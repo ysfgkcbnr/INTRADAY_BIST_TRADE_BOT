@@ -20,16 +20,17 @@ The repository includes independent Python bots. Each bot runs on a starting vir
 
 ---
 
-## 🚀 Live Paper Trading Mechanics
+## 🚀 Live Paper Trading Mechanics & Architecture (Fly.io + TradingView)
 
-These scripts connect directly to the **Yahoo Finance API (`yfinance`)** to fetch intraday 30-minute market data for 28 liquid BIST 100 stocks. 
+These scripts operate as a robust webhook-based live trading bot that no longer relies on slow public APIs. Instead, it uses **TradingView** and a local **SQLite Database**.
 
-Each time a bot is executed, it:
-1. Fetches the latest live intraday data.
-2. Re-calculates the historical $K=10$ periodicity signals.
-3. Dynamically rebalances its virtual portfolio (buying/shorting stocks to meet the target weights).
-4. Deducts realistic commission fees and logs every executed trade.
-5. Saves its persistent state into a local JSON file (e.g., `portfolio_b2_1x1.json`), meaning you will never lose your virtual equity state even if the script stops.
+1. **TradingView Webhooks (`tradingview_datafeed.pine`):** A custom Pine Script indicator runs on TradingView and sends live price data via webhooks exactly at **17:30** and **18:00**.
+2. **Fly.io Webhook Server (`app.py`):** A lightweight Flask server listens for these incoming webhooks on a cloud container (Fly.io).
+3. **Database (`market_data.db`):** Intraday historical prices for 28 liquid BIST 100 stocks are continuously stored in a local SQLite database, updated periodically by background tasks (`db_updater.py`) using `tvDatafeed`.
+4. **Execution Workflow:** 
+   - **At 17:30:** The server receives the webhook, saves open prices, triggers **Test A1 Entry**, and triggers **Test B2 Rebalance**.
+   - **At 18:00:** The server receives the webhook, saves closing prices, and triggers **Test A1 Exit**.
+5. **Portfolio Persistence:** The bots calculate historical $K=10$ periodicity signals, dynamically rebalance virtual equity, deduct commissions, and save their states into local JSON files (e.g., `portfolio_b2_1x1.json`). The server then automatically commits these files back to this GitHub repository to ensure no state is lost.
 
 ---
 
@@ -41,40 +42,12 @@ Make sure you have Python 3.10+ installed. Then install the required packages:
 pip install -r requirements.txt
 ```
 
-### 2. Run a Bot Locally
-You can manually trigger a live update for any strategy. It is recommended to run this during BIST market hours (10:00 - 18:00 Istanbul Time).
-
+### 2. Initialize Database & Run the Server
 ```bash
-# Execute a live market update and rebalance the portfolio
-python3 strateji_3_test_b2_1x1.py --run
+# Optional: Seed the database from your local CSV archives
+python3 init_db.py
 
-# View the beautiful CLI dashboard of your virtual portfolio
-python3 strateji_3_test_b2_1x1.py --report
-
-# Reset virtual capital back to 100,000 TL
-python3 strateji_3_test_b2_1x1.py --reset
-```
-
-## 🚀 Live Trading Architecture (Fly.io + TradingView)
-
-These scripts have been upgraded to operate as a robust webhook-based live trading bot:
-1. **TradingView Pine Script:** A custom indicator (`tradingview_datafeed.pine`) runs on TradingView and sends price data via webhooks exactly at 17:00 and 17:30.
-2. **Fly.io Webhook Server:** A lightweight Flask server (`app.py`) listens for these incoming webhooks on Fly.io.
-3. **Execution:** Upon receiving the 17:00 signal, the server runs the entry logic for Test A1. At 17:30, it runs the exit logic for A1 and triggers Test B2. 
-4. **Database:** Intraday prices are continuously stored in a local SQLite database (`market_data.db`) updated periodically by background tasks (`db_updater.py`).
-5. **Persistence:** The bot automatically commits the updated portfolio JSON files back to this GitHub repository.
-
----
-
-## ⚙️ Installation & Usage
-
-### 1. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Run the Webhook Server Locally
-```bash
+# Run the webhook server locally
 python3 app.py
 ```
 
