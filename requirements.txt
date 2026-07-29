@@ -9,3 +9,4 @@ Flask==3.0.3
 gunicorn==22.0.0
 git+https://github.com/rongardF/tvdatafeed.git
 APScheduler>=3.10.4
+logtail-python>=0.3.0

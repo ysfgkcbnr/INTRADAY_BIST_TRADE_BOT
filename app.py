@@ -5,6 +5,7 @@ import subprocess
 from datetime import datetime, timezone, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from db_updater import update_database_with_latest_bars
+from custom_logger import logger
 
 app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -20,45 +21,53 @@ def webhook():
         time_str = data['time']
         prices = data['prices']
         now_str = datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d %H:%M:%S')
-        print(f"[{now_str}] Webhook received for time: {time_str}")
+        logger.info(f"Webhook received for time: {time_str}")
 
         if time_str == "17:00":
             # Save 17:00 prices (Open prices for the strategy)
             with open(os.path.join(BASE_DIR, 'open_prices.json'), 'w') as f:
                 json.dump(prices, f)
-            print("Saved open_prices.json")
+            logger.info("Saved open_prices.json")
 
             # Run A1 Strategy ENTRY
-            print("Triggering A1 Strategy Entry...")
-            subprocess.run(["python3", "strateji_1_test_a1_1x1.py", "--run_entry"], cwd=BASE_DIR)
+            logger.info("Triggering A1 Strategy Entry...")
+            res = subprocess.run(["python3", "strateji_1_test_a1_1x1.py", "--run_entry"], cwd=BASE_DIR, capture_output=True, text=True)
+            if res.stdout: logger.info(f"A1 Entry Output:\n{res.stdout}")
+            if res.stderr: logger.error(f"A1 Entry Error:\n{res.stderr}")
 
             # Push changes to GitHub
-            subprocess.run(["./run_and_push.sh"], cwd=BASE_DIR)
+            res_git = subprocess.run(["./run_and_push.sh"], cwd=BASE_DIR, capture_output=True, text=True)
+            if res_git.stdout: logger.info(f"Git Push Output:\n{res_git.stdout}")
 
         elif time_str == "17:30":
             # Save 17:30 prices (Close prices for the strategy)
             with open(os.path.join(BASE_DIR, 'close_prices.json'), 'w') as f:
                 json.dump(prices, f)
-            print("Saved close_prices.json")
+            logger.info("Saved close_prices.json")
 
             # Run A1 Strategy EXIT
-            print("Triggering A1 Strategy Exit...")
-            subprocess.run(["python3", "strateji_1_test_a1_1x1.py", "--run_exit"], cwd=BASE_DIR)
+            logger.info("Triggering A1 Strategy Exit...")
+            res = subprocess.run(["python3", "strateji_1_test_a1_1x1.py", "--run_exit"], cwd=BASE_DIR, capture_output=True, text=True)
+            if res.stdout: logger.info(f"A1 Exit Output:\n{res.stdout}")
+            if res.stderr: logger.error(f"A1 Exit Error:\n{res.stderr}")
 
             # Run B2 Strategy (Exit old overlapping portfolios and enter new ones)
-            print("Triggering B2 Strategy...")
-            subprocess.run(["python3", "strateji_3_test_b2_1x1.py", "--run"], cwd=BASE_DIR)
+            logger.info("Triggering B2 Strategy...")
+            res_b2 = subprocess.run(["python3", "strateji_3_test_b2_1x1.py", "--run"], cwd=BASE_DIR, capture_output=True, text=True)
+            if res_b2.stdout: logger.info(f"B2 Output:\n{res_b2.stdout}")
+            if res_b2.stderr: logger.error(f"B2 Error:\n{res_b2.stderr}")
 
             # Push changes to GitHub
-            subprocess.run(["./run_and_push.sh"], cwd=BASE_DIR)
+            res_git = subprocess.run(["./run_and_push.sh"], cwd=BASE_DIR, capture_output=True, text=True)
+            if res_git.stdout: logger.info(f"Git Push Output:\n{res_git.stdout}")
 
         else:
-            print(f"Unknown time_str received: {time_str}")
+            logger.warning(f"Unknown time_str received: {time_str}")
 
         return "OK", 200
 
     except Exception as e:
-        print(f"Error processing webhook: {e}")
+        logger.error(f"Error processing webhook: {e}")
         return str(e), 500
 
 @app.route('/', methods=['GET'])

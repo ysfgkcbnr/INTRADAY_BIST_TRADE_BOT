@@ -2,6 +2,7 @@ import os
 import datetime
 from tvDatafeed import TvDatafeed, Interval
 from db_utils import get_db_connection
+from custom_logger import logger
 
 # Tickers to fetch
 TICKERS_BIST = [
@@ -12,11 +13,11 @@ TICKERS_BIST = [
 ]
 
 def update_database_with_latest_bars():
-    print(f"[{datetime.datetime.now()}] tvDatafeed üzerinden veri güncellemesi başlatılıyor...")
+    logger.info(f"[{datetime.datetime.now()}] tvDatafeed üzerinden veri güncellemesi başlatılıyor...")
     try:
         tv = TvDatafeed()
     except Exception as e:
-        print(f"tvDatafeed başlatılamadı: {e}")
+        logger.error(f"tvDatafeed başlatılamadı: {e}")
         return
 
     conn = get_db_connection()
@@ -48,11 +49,11 @@ def update_database_with_latest_bars():
                     total_new_rows += 1
                     
         except Exception as e:
-            print(f"{symbol} güncellenirken hata oluştu: {e}")
+            logger.error(f"{symbol} güncellenirken hata oluştu: {e}")
 
     conn.commit()
     conn.close()
-    print(f"[{datetime.datetime.now()}] Güncelleme tamamlandı. Toplam {total_new_rows} yeni mum veritabanına eklendi.")
+    logger.info(f"[{datetime.datetime.now()}] Güncelleme tamamlandı. Toplam {total_new_rows} yeni mum veritabanına eklendi.")
 
 if __name__ == '__main__':
     update_database_with_latest_bars()
