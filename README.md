@@ -12,11 +12,11 @@ The repository includes independent Python bots. Each bot runs on a starting vir
 
 ### 1. `strateji_1_test_a1_1x1.py` (The 17:30 Sniper)
 - **Logic:** Only trades the highly predictable 17:30 closing bar. It goes Long on the Top 1 stock with the highest periodicity signal and Short on the Bottom 1 stock.
-- **Performance:** Achieved **+0.72 Net Sharpe Ratio**, **+10.15% Net CAGR**, and near-zero overfitting (PBO 1.76%).
+- **Performance:** Achieved **+2.75 Net Sharpe Ratio**, **+49.84% Net Total Return**, and zero overfitting risk (PBO 9.09%).
 
 ### 2. `strateji_3_test_b2_1x1.py` (The Ultimate Record Champion)
 - **Logic:** Combines the 10-day 1/10 overlapping holding structure with the concentrated extreme signal (Top 1 Long / Bottom 1 Short).
-- **Performance:** The absolute winner. Achieved **+148.40% Net Total Return (4.5 years)**, **+22.81% Net CAGR**, **0.89 Net Sharpe**, and is statistically significant at a 95%+ confidence level (Newey-West p < 0.05) with low overfitting risk (PBO 21.55%).
+- **Performance:** The absolute winner. Achieved **+184.22% Net Total Return (4.5 years)**, **+26.87% Net CAGR**, **1.07 Net Sharpe**, and is statistically significant at a 95%+ confidence level (Newey-West p < 0.05).
 
 ---
 
