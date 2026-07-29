@@ -11,6 +11,33 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TZ_ISTANBUL = timezone(timedelta(hours=3))
 
+import threading
+
+def process_1700_webhook():
+    logger.info("Triggering A1 Strategy Entry...")
+    res = subprocess.run(["python3", "strateji_1_test_a1_1x1.py", "--run_entry"], cwd=BASE_DIR, capture_output=True, text=True)
+    if res.stdout: logger.info(f"A1 Entry Output:\n{res.stdout}")
+    if res.stderr: logger.error(f"A1 Entry Error:\n{res.stderr}")
+
+    logger.info("Pushing changes to GitHub...")
+    res_git = subprocess.run(["./run_and_push.sh"], cwd=BASE_DIR, capture_output=True, text=True)
+    if res_git.stdout: logger.info(f"Git Push Output:\n{res_git.stdout}")
+
+def process_1730_webhook():
+    logger.info("Triggering A1 Strategy Exit...")
+    res = subprocess.run(["python3", "strateji_1_test_a1_1x1.py", "--run_exit"], cwd=BASE_DIR, capture_output=True, text=True)
+    if res.stdout: logger.info(f"A1 Exit Output:\n{res.stdout}")
+    if res.stderr: logger.error(f"A1 Exit Error:\n{res.stderr}")
+
+    logger.info("Triggering B2 Strategy...")
+    res_b2 = subprocess.run(["python3", "strateji_3_test_b2_1x1.py", "--run"], cwd=BASE_DIR, capture_output=True, text=True)
+    if res_b2.stdout: logger.info(f"B2 Output:\n{res_b2.stdout}")
+    if res_b2.stderr: logger.error(f"B2 Error:\n{res_b2.stderr}")
+
+    logger.info("Pushing changes to GitHub...")
+    res_git = subprocess.run(["./run_and_push.sh"], cwd=BASE_DIR, capture_output=True, text=True)
+    if res_git.stdout: logger.info(f"Git Push Output:\n{res_git.stdout}")
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
@@ -24,42 +51,20 @@ def webhook():
         logger.info(f"Webhook received for time: {time_str}")
 
         if time_str == "17:00":
-            # Save 17:00 prices (Open prices for the strategy)
             with open(os.path.join(BASE_DIR, 'open_prices.json'), 'w') as f:
                 json.dump(prices, f)
             logger.info("Saved open_prices.json")
-
-            # Run A1 Strategy ENTRY
-            logger.info("Triggering A1 Strategy Entry...")
-            res = subprocess.run(["python3", "strateji_1_test_a1_1x1.py", "--run_entry"], cwd=BASE_DIR, capture_output=True, text=True)
-            if res.stdout: logger.info(f"A1 Entry Output:\n{res.stdout}")
-            if res.stderr: logger.error(f"A1 Entry Error:\n{res.stderr}")
-
-            # Push changes to GitHub
-            res_git = subprocess.run(["./run_and_push.sh"], cwd=BASE_DIR, capture_output=True, text=True)
-            if res_git.stdout: logger.info(f"Git Push Output:\n{res_git.stdout}")
+            
+            # Start background thread so webhook can return 200 OK immediately
+            threading.Thread(target=process_1700_webhook).start()
 
         elif time_str == "17:30":
-            # Save 17:30 prices (Close prices for the strategy)
             with open(os.path.join(BASE_DIR, 'close_prices.json'), 'w') as f:
                 json.dump(prices, f)
             logger.info("Saved close_prices.json")
-
-            # Run A1 Strategy EXIT
-            logger.info("Triggering A1 Strategy Exit...")
-            res = subprocess.run(["python3", "strateji_1_test_a1_1x1.py", "--run_exit"], cwd=BASE_DIR, capture_output=True, text=True)
-            if res.stdout: logger.info(f"A1 Exit Output:\n{res.stdout}")
-            if res.stderr: logger.error(f"A1 Exit Error:\n{res.stderr}")
-
-            # Run B2 Strategy (Exit old overlapping portfolios and enter new ones)
-            logger.info("Triggering B2 Strategy...")
-            res_b2 = subprocess.run(["python3", "strateji_3_test_b2_1x1.py", "--run"], cwd=BASE_DIR, capture_output=True, text=True)
-            if res_b2.stdout: logger.info(f"B2 Output:\n{res_b2.stdout}")
-            if res_b2.stderr: logger.error(f"B2 Error:\n{res_b2.stderr}")
-
-            # Push changes to GitHub
-            res_git = subprocess.run(["./run_and_push.sh"], cwd=BASE_DIR, capture_output=True, text=True)
-            if res_git.stdout: logger.info(f"Git Push Output:\n{res_git.stdout}")
+            
+            # Start background thread so webhook can return 200 OK immediately
+            threading.Thread(target=process_1730_webhook).start()
 
         else:
             logger.warning(f"Unknown time_str received: {time_str}")
