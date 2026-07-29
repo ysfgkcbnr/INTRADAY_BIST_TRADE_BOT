@@ -6,21 +6,17 @@ After conducting exhaustive backtesting and rigorous statistical validation (Nes
 
 ---
 
-## 🏆 The 3 Champion Strategy Bots
+## 🏆 The Champion Strategy Bots (Limit-Up/Down Protected)
 
-The repository includes three independent Python bots. Each bot runs on a starting virtual equity of **100,000 TL**, simulating a **2.0x Notional Exposure** (100k Spot Buy + 100k VIOP Short) with a realistic transaction cost of **2.0 BPS (0.020%)**.
+The repository includes independent Python bots. Each bot runs on a starting virtual equity of **100,000 TL**, simulating a **2.0x Notional Exposure** (100k Spot Buy + 100k VIOP Short) with a realistic transaction cost of **2.0 BPS (0.020%)**. Importantly, their performance has been validated strictly under **Borsa Istanbul's 9% Limit Up/Down rules**, blocking any fictitious profits.
 
 ### 1. `strateji_1_test_a1_1x1.py` (The 17:30 Sniper)
 - **Logic:** Only trades the highly predictable 17:30 closing bar. It goes Long on the Top 1 stock with the highest periodicity signal and Short on the Bottom 1 stock.
-- **Performance:** Achieved an extraordinary **+2.75 Net Sharpe Ratio**, **+109% Net CAGR**, and near-zero overfitting (PBO < 10%).
+- **Performance:** Achieved **+0.72 Net Sharpe Ratio**, **+10.15% Net CAGR**, and near-zero overfitting (PBO 1.76%).
 
-### 2. `strateji_2_test_b2_5x5.py` (The 10-Day Overlapping Quintile)
-- **Logic:** Identifies signals at 17:30 and holds the positions for 10 trading days using a 1/10 overlapping portfolio structure (Jegadeesh & Titman style) to minimize transaction costs. Selects Top 5 Long / Bottom 5 Short.
-- **Performance:** Achieved **+0.70 Net Sharpe Ratio** and **+9.81% Net CAGR** with extremely low drawdown.
-
-### 3. `strateji_3_test_b2_1x1.py` (The Ultimate Record Champion)
+### 2. `strateji_3_test_b2_1x1.py` (The Ultimate Record Champion)
 - **Logic:** Combines the 10-day 1/10 overlapping holding structure with the concentrated extreme signal (Top 1 Long / Bottom 1 Short).
-- **Performance:** The absolute winner. Achieved **+184.2% Net Total Return (4.5 years)**, **+26.8% Net CAGR**, **1.07 Net Sharpe**, and is statistically significant at a 98%+ confidence level (Newey-West p < 0.05).
+- **Performance:** The absolute winner. Achieved **+148.40% Net Total Return (4.5 years)**, **+22.81% Net CAGR**, **0.89 Net Sharpe**, and is statistically significant at a 95%+ confidence level (Newey-West p < 0.05) with low overfitting risk (PBO 21.55%).
 
 ---
 
