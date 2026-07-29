@@ -112,10 +112,10 @@ def fetch_data():
         close_df.index = close_df.index.tz_localize(TZ_ISTANBUL)
         open_df.index = open_df.index.tz_localize(TZ_ISTANBUL)
 
-        # 14 günlük filtre
-        fourteen_days_ago = datetime.now(TZ_ISTANBUL) - timedelta(days=14)
-        close_df = close_df[close_df.index >= fourteen_days_ago]
-        open_df = open_df[open_df.index >= fourteen_days_ago]
+        # 30 günlük filtre
+        thirty_days_ago = datetime.now(TZ_ISTANBUL) - timedelta(days=30)
+        close_df = close_df[close_df.index >= thirty_days_ago]
+        open_df = open_df[open_df.index >= thirty_days_ago]
 
         # 09:30 ve 18:00 (kapanış) mumlarını filtrele (eski yfinance kalıntısı)
         time_str = close_df.index.strftime('%H:%M')
