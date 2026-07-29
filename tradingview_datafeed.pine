@@ -40,14 +40,14 @@ json_payload = '{"AEFES":' + str.tostring(p_aefes) + ', "AKBNK":' + str.tostring
 h = hour(time, "Europe/Istanbul")
 m = minute(time, "Europe/Istanbul")
 
-// 16:59 mumu kapandığında saat tam 17:00 olur. (A1 Stratejisi Alım Zamanı)
-is_1700_trigger = (h == 16 and m == 59)
-
-// 17:29 mumu kapandığında saat tam 17:30 olur. (A1 Satım & B2 Alım-Satım Zamanı)
+// 17:29 mumu kapandığında saat tam 17:30 olur. (A1 Stratejisi Alım Zamanı & B2 Rebalance)
 is_1730_trigger = (h == 17 and m == 29)
 
-if is_1700_trigger
-    alert('{"time": "17:00", "prices": ' + json_payload + '}', alert.freq_once_per_bar_close)
+// 17:59 mumu kapandığında saat tam 18:00 olur. (A1 Stratejisi Satım Zamanı - Kapanış)
+is_1800_trigger = (h == 17 and m == 59)
 
 if is_1730_trigger
     alert('{"time": "17:30", "prices": ' + json_payload + '}', alert.freq_once_per_bar_close)
+
+if is_1800_trigger
+    alert('{"time": "18:00", "prices": ' + json_payload + '}', alert.freq_once_per_bar_close)

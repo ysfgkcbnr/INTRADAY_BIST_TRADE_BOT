@@ -122,7 +122,7 @@ def fetch_data():
 
 def run_entry():
     now_str = datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d %H:%M:%S')
-    print(f"\n[{now_str}] Strateji 1 (A1) ENTRY (17:00) Başladı...")
+    print(f"\n[{now_str}] Strateji 1 (A1) ENTRY (17:30) Başladı...")
 
     portfolio = load_portfolio()
     data = fetch_data()
@@ -130,14 +130,14 @@ def run_entry():
         return
 
     r_oc_df = data['r_oc']
-    close_1730 = r_oc_df[r_oc_df.index.strftime('%H:%M') == '17:00']
+    close_1730 = r_oc_df[r_oc_df.index.strftime('%H:%M') == '17:30']
 
     if len(close_1730) < K_DAYS:
         print("Yeterli geçmiş veri yok.")
         return
 
     # Sinyal SADECE geçmiş K güne bakılarak hesaplanır (Bugün hariç)
-    # Eğer close_1730'un son satırı bugüne aitse (17:00 Yahoo'da oluştuysa), onu alma!
+    # Eğer close_1730'un son satırı bugüne aitse (17:30 Yahoo'da oluştuysa), onu alma!
     today_str = datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d')
     if close_1730.index[-1].strftime('%Y-%m-%d') == today_str:
         recent_k = close_1730.iloc[-(K_DAYS+1):-1]
@@ -280,7 +280,7 @@ def run_entry():
 
 def run_exit():
     now_str = datetime.now(TZ_ISTANBUL).strftime('%Y-%m-%d %H:%M:%S')
-    print(f"\n[{now_str}] Strateji 1 (A1) EXIT (17:30) Başladı...")
+    print(f"\n[{now_str}] Strateji 1 (A1) EXIT (18:00) Başladı...")
 
     portfolio = load_portfolio()
     

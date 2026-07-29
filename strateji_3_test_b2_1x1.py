@@ -249,13 +249,42 @@ def run_strategy():
     print(msg_top)
     print(msg_bot)
 
-    with open(signal_log_path, 'a', encoding='utf-8') as f:
-        f.write(f"[{now_str}]\n{msg_top}\n{msg_bot}\n\n")
+    # --- 10-Day Overlapping Logic ---
+    history_file = os.path.join(BASE_DIR, 'signals_history_b2.json')
+    sig_history = []
+    if os.path.exists(history_file):
+        with open(history_file, 'r') as f:
+            sig_history = json.load(f)
 
-    price_top = float(latest_prices[top_1]) if top_1 else 0.0
-    price_bottom = float(latest_prices[bottom_1]) if bottom_1 else 0.0
+    # Remove today if it was already run (idempotency)
+    sig_history = [s for s in sig_history if s['date'] != today_str]
+    
+    # Append today's signal
+    sig_history.append({
+        'date': today_str,
+        'long': top_1,
+        'short': bottom_1
+    })
 
-    # Rebalance logic for B2 1x1 (Overlapping holding)
+    # Keep only the last 10 days
+    if len(sig_history) > 10:
+        sig_history = sig_history[-10:]
+
+    with open(history_file, 'w') as f:
+        json.dump(sig_history, f, indent=2)
+
+    # Calculate Target Weights (1/10 for each day)
+    target_weights = {}
+    n_days_in_history = len(sig_history)
+    for s in sig_history:
+        l_ticker = s['long']
+        s_ticker = s['short']
+        if l_ticker:
+            target_weights[l_ticker] = target_weights.get(l_ticker, 0.0) + (1.0 / n_days_in_history)
+        if s_ticker:
+            target_weights[s_ticker] = target_weights.get(s_ticker, 0.0) - (1.0 / n_days_in_history)
+
+    # Mark to Market
     unrealized_pnl = 0.0
     for t, pos in portfolio['active_positions'].items():
         if t in latest_prices:
@@ -267,61 +296,82 @@ def run_strategy():
 
     total_equity = portfolio['cash'] + unrealized_pnl
     portfolio['equity'] = total_equity
+    if 'trade_history' not in portfolio: portfolio['trade_history'] = []
 
-    # Close positions not in target
-    for t in list(portfolio['active_positions'].keys()):
-        if t != top_1 and t != bottom_1:
-            pos = portfolio['active_positions'].pop(t)
-            exit_price = float(latest_prices[t])
-            realized = (exit_price - pos['entry_price']) * pos['shares'] if pos['side'] == 'LONG' else (pos['entry_price'] - exit_price) * pos['shares']
-            cost = (exit_price * pos['shares']) * COST_BPS
+    # Process all tickers that are either in current portfolio or in target portfolio
+    all_tickers_to_process = set(portfolio['active_positions'].keys()).union(set(target_weights.keys()))
 
+    for t in all_tickers_to_process:
+        if t not in latest_prices: continue
+        cp = float(latest_prices[t])
+        
+        target_w = target_weights.get(t, 0.0)
+        # BIST doesn't allow fractional shares, we simulate VIOP/Spot with integers
+        target_shares = int(abs(target_w) * total_equity / cp) if cp > 0 else 0
+        target_side = 'LONG' if target_w > 0 else ('SHORT' if target_w < 0 else None)
+        if target_w == 0: target_shares = 0
+
+        # Current state
+        pos = portfolio['active_positions'].get(t)
+        current_shares = pos['shares'] if pos else 0
+        current_side = pos['side'] if pos else None
+
+        # Rebalancing Logic
+        if current_shares > 0 and current_side != target_side:
+            # Side changed completely, or target is 0. Close current position first.
+            realized = (cp - pos['entry_price']) * current_shares if current_side == 'LONG' else (pos['entry_price'] - cp) * current_shares
+            cost = (cp * current_shares) * COST_BPS
             portfolio['cash'] += realized - cost
             portfolio['total_realized_pnl'] += realized
             portfolio['total_commission_paid'] += cost
-
-            # Gecmis islem logunu trade_history listesine kaydet
-            if 'trade_history' not in portfolio:
-                portfolio['trade_history'] = []
-            
             portfolio['trade_history'].append({
-                'ticker': t,
-                'side': pos['side'],
-                'shares': pos['shares'],
-                'entry_price': pos['entry_price'],
-                'exit_price': exit_price,
-                'realized_pnl': realized,
-                'commission_paid': cost,
-                'close_time': now_str
+                'ticker': t, 'side': current_side, 'shares': current_shares, 
+                'entry_price': pos['entry_price'], 'exit_price': cp, 'realized_pnl': realized, 
+                'commission_paid': cost, 'close_time': now_str
             })
+            del portfolio['active_positions'][t]
+            current_shares = 0
+            current_side = None
 
-    # Open target 1x1 positions
-    target_shares_long = int(total_equity / price_top) if price_top > 0 else 0
-    target_shares_short = int(total_equity / price_bottom) if price_bottom > 0 else 0
+        if target_shares > 0:
+            if current_shares == 0:
+                # Open brand new position
+                cost = (cp * target_shares) * COST_BPS
+                portfolio['cash'] -= cost
+                portfolio['total_commission_paid'] += cost
+                portfolio['active_positions'][t] = {
+                    'side': target_side, 'shares': target_shares, 'entry_price': cp, 'curr_price': cp, 'unrealized_pnl': 0.0
+                }
+            else:
+                # Adjust existing position (same side)
+                delta_shares = target_shares - current_shares
+                if delta_shares != 0:
+                    cost = (cp * abs(delta_shares)) * COST_BPS
+                    portfolio['cash'] -= cost
+                    portfolio['total_commission_paid'] += cost
+                    
+                    if delta_shares > 0:
+                        # Adding to position: average down entry price
+                        old_cost_basis = pos['shares'] * pos['entry_price']
+                        new_cost_basis = old_cost_basis + (delta_shares * cp)
+                        pos['shares'] = target_shares
+                        pos['entry_price'] = new_cost_basis / target_shares
+                    else:
+                        # Reducing position: realize partial PnL
+                        closed_shares = abs(delta_shares)
+                        realized = (cp - pos['entry_price']) * closed_shares if current_side == 'LONG' else (pos['entry_price'] - cp) * closed_shares
+                        portfolio['cash'] += realized
+                        portfolio['total_realized_pnl'] += realized
+                        pos['shares'] = target_shares
+                        
+                        portfolio['trade_history'].append({
+                            'ticker': t, 'side': current_side, 'shares': closed_shares, 
+                            'entry_price': pos['entry_price'], 'exit_price': cp, 'realized_pnl': realized, 
+                            'commission_paid': cost, 'close_time': now_str + " (Partial)"
+                        })
 
-    if top_1 not in portfolio['active_positions'] and target_shares_long > 0:
-        cost = (price_top * target_shares_long) * COST_BPS
-        portfolio['cash'] -= cost
-        portfolio['total_commission_paid'] += cost
-        portfolio['active_positions'][top_1] = {
-            'side': 'LONG', 'shares': target_shares_long, 'entry_price': price_top, 'curr_price': price_top, 'unrealized_pnl': 0.0
-        }
-
-    if bottom_1 not in portfolio['active_positions'] and target_shares_short > 0:
-        cost = (price_bottom * target_shares_short) * COST_BPS
-        portfolio['cash'] -= cost
-        portfolio['total_commission_paid'] += cost
-        portfolio['active_positions'][bottom_1] = {
-            'side': 'SHORT', 'shares': target_shares_short, 'entry_price': price_bottom, 'curr_price': price_bottom, 'unrealized_pnl': 0.0
-        }
-
-    # Sermaye gecmisi takibi icin
-    if 'equity_history' not in portfolio:
-        portfolio['equity_history'] = []
-    portfolio['equity_history'].append({
-        'time': now_str,
-        'equity': portfolio['equity']
-    })
+    if 'equity_history' not in portfolio: portfolio['equity_history'] = []
+    portfolio['equity_history'].append({'time': now_str, 'equity': portfolio['equity']})
 
     save_portfolio(portfolio)
     print(f"Strateji 3 Güncellendi. Güncel Sanal Özkaynak: {portfolio['equity']:,.2f} TL")
