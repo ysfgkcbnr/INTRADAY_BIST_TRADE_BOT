@@ -141,7 +141,7 @@ def run_strategy():
 
     r_oc_df = data['r_oc']
     close_df = data['close']
-    close_1730 = r_oc_df[r_oc_df.index.strftime('%H:%M') == '17:00']
+    close_1730 = r_oc_df[r_oc_df.index.strftime('%H:%M') == '17:30']
 
     if len(close_1730) < K_DAYS:
         print("Yeterli geçmiş veri yok.")
@@ -166,17 +166,17 @@ def run_strategy():
     w_arr = np.array(weights) / np.sum(weights)
     sig_series = pd.Series(np.tensordot(w_arr, np.array(hist_zscores), axes=(0, 0)), index=r_oc_df.columns)
 
-    # Webhook Fiyatlarını Oku (close_prices.json)
-    close_prices = {}
-    if os.path.exists(os.path.join(BASE_DIR, 'close_prices.json')):
-        with open(os.path.join(BASE_DIR, 'close_prices.json'), 'r') as f:
-            close_prices = json.load(f)
-            
-    if not close_prices:
-        print("close_prices.json bulunamadı. Webhook gelmedi mi?")
+    # 17:30 Webhook Fiyatlarını Oku (open_prices.json)
+    open_prices = {}
+    if os.path.exists(os.path.join(BASE_DIR, 'open_prices.json')):
+        with open(os.path.join(BASE_DIR, 'open_prices.json'), 'r') as f:
+            open_prices = json.load(f)
+
+    if not open_prices:
+        print("open_prices.json bulunamadı. Webhook gelmedi mi?")
         return
-        
-    latest_prices = pd.Series(close_prices)
+
+    latest_prices = pd.Series(open_prices)
     valid_stocks = sig_series.dropna().index.intersection(latest_prices.dropna().index)
     sorted_stocks = sig_series[valid_stocks].sort_values(ascending=False)
 
