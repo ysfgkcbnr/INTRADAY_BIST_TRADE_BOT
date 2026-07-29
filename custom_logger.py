@@ -20,7 +20,8 @@ def get_app_logger(name="BIST_BOT"):
         if logtail_token:
             try:
                 from logtail import LogtailHandler
-                logtail_handler = LogtailHandler(source_token=logtail_token, host="in.eu.logs.betterstack.com")
+                logtail_host = os.environ.get("LOGTAIL_HOST", "in.logs.betterstack.com")
+                logtail_handler = LogtailHandler(source_token=logtail_token, host=logtail_host)
                 logtail_handler.setLevel(logging.INFO)
                 logger.addHandler(logtail_handler)
                 logger.info("Logtail başarıyla bağlandı!")
