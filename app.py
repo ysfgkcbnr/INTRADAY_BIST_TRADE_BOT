@@ -103,7 +103,7 @@ scheduler.add_job(
     'cron',
     day_of_week='mon-fri',
     hour='10-18',
-    minute='0,30'
+    minute='2,32'
 )
 scheduler.start()
 
